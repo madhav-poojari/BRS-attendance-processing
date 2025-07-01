@@ -9,8 +9,8 @@ from collections import defaultdict
 
 # Google Drive API Setup
 SCOPES = ['https://www.googleapis.com/auth/drive']
-SERVICE_ACCOUNT_FILE = 'brs-fee-processing-37200ce60072.json'
-FOLDER_ID = '1g7JS6Ej5LdTox8g5R-ds5waBrXJP7S3E'
+SERVICE_ACCOUNT_FILE = 'brs-fee-processing-a463be28da95.json'
+FOLDER_ID = '1k6ezg3F2KFCPHPl6_gQzUOg7Vv8yhREx'
 
 creds = service_account.Credentials.from_service_account_file(
     SERVICE_ACCOUNT_FILE, scopes=SCOPES
@@ -35,8 +35,16 @@ def download_sheet_as_excel(sheet_id, sheet_name, output_folder):
 # Get all spreadsheets from the folder
 def get_files_from_drive():
     query = f"'{FOLDER_ID}' in parents"
-    results = service.files().list(q=query).execute()
-    return results.get('files', [])
+    try:
+        results = service.files().list(q=query).execute()
+        files = results.get('files', [])
+        print(f"Found {len(files)} files in the folder")
+        for file in files:
+            print(f"  - {file['name']} (ID: {file['id']})")
+        return files
+    except Exception as e:
+        print(f"Error accessing Google Drive: {e}")
+        return []
 
 def get_price_per_class(coach_name, student_name, coach_rates):
     """
@@ -78,7 +86,7 @@ for _, row in coach_rates.iterrows():
 
 # User input for month and year
 # month_year = input("Enter month and year (MM-YYYY): ")
-month_year = "02-2025"
+month_year = "06-2025"
 month, year = month_year.split('-')
 month, year = int(month), int(year)
 
@@ -91,9 +99,14 @@ colors = {
     'regular': 'ADD8E6',  # Light Blue
     'substitution': 'B9FF66',  # Orange
     'missing': 'FFFFFF',  # White
-    'dual': 'FFFFC5'  # White
+    'dual': 'FFFFC5',  # White
+    'duplicate': 'FFB6C1'  # Pinkish-red for duplicate/failed processing
 }
 student_class_count = defaultdict(lambda: defaultdict(int))
+
+# Dictionary to track processed dates for each coach-student pair
+processed = defaultdict(lambda: defaultdict(set))
+
 files = get_files_from_drive()
 # Process each spreadsheet
 for file in files:
@@ -104,6 +117,17 @@ for file in files:
     file_path = download_sheet_as_excel(sheet_id, sheet_name, 'temp_sheets')
     df = pd.read_excel(file_path)
     df['Coach Name'] = coach_name
+    mapping = {}
+    for col in df.columns:
+        lower = col.lower()
+        if 'date' in lower:
+            mapping[col] = 'Date of class'
+        elif 'name of student' in lower:
+            mapping[col] = 'Name of student'
+        elif 'substitution' in lower:
+            mapping[col] = 'Substitution details'
+    df.rename(columns=mapping, inplace=True)
+    
     if class_date_key not in df:
         class_date_key = "Date of class"
     df[class_date_key] = pd.to_datetime(df[class_date_key], errors='coerce')
@@ -111,6 +135,7 @@ for file in files:
 
     for _, row in df.iterrows():
         student_name = row['Name of student']
+        class_date = row[class_date_key].date() if pd.notna(row[class_date_key]) else None
 
         # Determine class type
         if 'substitution' in student_name.lower():
@@ -120,16 +145,28 @@ for file in files:
         else:
             class_type = 'regular'
 
+        # Check for duplicate processing (same coach, student, and date)
+        is_duplicate = False
+        if class_date and class_date in processed[coach_name][student_name]:
+            is_duplicate = True
+
         # Fetch coach rate
         coach_rate = coach_rates[coach_rates['coach_name'] == coach_name]
         if coach_rate.empty:
             fee_processed = False
             color = colors['missing']
             price_per_class = None
+        elif is_duplicate:
+            fee_processed = False
+            color = colors['duplicate']
+            price_per_class = coach_rate.iloc[0][class_type]
         else:
             fee_processed = True
             price_per_class = coach_rate.iloc[0][class_type]
             color = colors[class_type]
+            # Add date to processed set only if processing is successful
+            if class_date:
+                processed[coach_name][student_name].add(class_date)
 
         # Add to master attendance
         master_attendance.append({
@@ -140,10 +177,11 @@ for file in files:
             'Fee Processed': fee_processed,
             'Color': color
         })
+        
+        # Only count for payout if fee was processed successfully
         if fee_processed:
             student_class_count[coach_name][student_name] += 1
 
-        # Add to coach payout if valid
     print(f"Done with {coach_name}")
 for coach_name, students in student_class_count.items():
     for student_name, class_count in students.items():
