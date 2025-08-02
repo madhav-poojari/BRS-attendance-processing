@@ -9,6 +9,8 @@ from collections import defaultdict
 
 # Google Drive API Setup
 SCOPES = ['https://www.googleapis.com/auth/drive']
+# secet availble in brs acad gmail
+
 SERVICE_ACCOUNT_FILE = 'brs-fee-processing-ee8420e4d4e9.json'
 FOLDER_ID = '1k6ezg3F2KFCPHPl6_gQzUOg7Vv8yhREx'
 
