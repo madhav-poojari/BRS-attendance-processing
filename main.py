@@ -88,7 +88,7 @@ for _, row in coach_rates.iterrows():
 
 # User input for month and year
 # month_year = input("Enter month and year (MM-YYYY): ")
-month_year = "06-2025"
+month_year = "07-2025"
 month, year = month_year.split('-')
 month, year = int(month), int(year)
 
@@ -149,7 +149,7 @@ for file in files:
 
         # Check for duplicate processing (same coach, student, and date)
         is_duplicate = False
-        if class_date and class_date in processed[coach_name][student_name]:
+        if class_date and class_date in processed[coach_name][student_name] and class_type != 'substitution':
             is_duplicate = True
 
         # Fetch coach rate
@@ -177,7 +177,8 @@ for file in files:
             'Student Name': student_name,
             'Class Type': class_type,
             'Fee Processed': fee_processed,
-            'Color': color
+            'Color': color,
+            'Substitution': row['Substitution details']
         })
         
         # Only count for payout if fee was processed successfully
