@@ -62,7 +62,7 @@ def get_price_per_class(coach_name, student_name, coach_rates):
     """
 
     # Default pricing structure if coach is not found
-    default_prices = {'regular': 0, 'group': 0, 'dual': 0, 'substitution': 0}
+    default_prices = {'regular': 350, 'group': 500, 'dual': 600, 'substitution': 400}
 
     # Get the coach's rates, fallback to default if not found
     rates = coach_rates.get(coach_name, default_prices)
@@ -88,7 +88,7 @@ for _, row in coach_rates.iterrows():
 
 # User input for month and year
 # month_year = input("Enter month and year (MM-YYYY): ")
-month_year = "07-2025"
+month_year = "09-2025"
 month, year = month_year.split('-')
 month, year = int(month), int(year)
 
@@ -154,11 +154,11 @@ for file in files:
 
         # Fetch coach rate
         coach_rate = coach_rates[coach_rates['coach_name'] == coach_name]
+        # print(coach_dict)
         if coach_rate.empty:
-            fee_processed = False
-            color = colors['missing']
-            price_per_class = None
-        elif is_duplicate:
+            coach_rate =coach_rates[coach_rates['coach_name'] == 'default']
+        
+        if is_duplicate:
             fee_processed = False
             color = colors['duplicate']
             price_per_class = coach_rate.iloc[0][class_type]
@@ -205,7 +205,7 @@ master_attendance_df = pd.DataFrame(master_attendance)
 coach_payout_df = pd.DataFrame(coach_payout)
 
 # Save to Excel
-output_file = f'Coach_Payments_{month_year}.xlsx'
+output_file = f'{month_year}_Coach_Payments_.xlsx'
 with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
     master_attendance_df.to_excel(writer, sheet_name='Master Attendance', index=False)
     coach_payout_df.to_excel(writer, sheet_name='Coach Payout', index=False)
